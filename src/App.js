@@ -1,25 +1,75 @@
-import logo from './logo.svg';
-import './App.css';
+import React, { useState } from 'react';
+import Header from './components/common/Header';
+import Footer from './components/common/Footer';
+import WeatherWidget from './components/common/WeatherWidget';
+import AuthModal from './components/common/AuthModal';
+import HomePage from './components/pages/HomePage';
+import CropAdvisoryPage from './components/pages/CropAdvisoryPage';
+import EquipmentPage from './components/pages/EquipmentPage';
+import ChatbotPage from './components/pages/ChatbotPage';
+import MarketTrackingPage from './components/pages/MarketTrackingPage';
+import WeatherPage from './components/pages/WeatherPage';
+import ResourcesPage from './components/pages/ResourcesPage';
+import { useAuth } from './hooks/useAuth';
 
-function App() {
+const DhartiMitra = () => {
+  const [currentPage, setCurrentPage] = useState('home');
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const auth = useAuth();
+
+  const renderPage = () => {
+    
+    switch (currentPage) {
+      case 'home':
+        return <HomePage />;
+      case 'advisory':
+        return <CropAdvisoryPage />;
+      case 'equipment':
+        return <EquipmentPage />;
+      case 'chatbot':
+        return <ChatbotPage />;
+      case 'market':
+        return <MarketTrackingPage />;
+      case 'weather':
+        return <WeatherPage />;
+      case 'resources':
+        return <ResourcesPage />;
+      default:
+        return <HomePage />;
+    }
+  };
+
+  const handleLogin = (userData, token) => {
+    auth.login(userData, token);
+    setShowAuthModal(false);
+  };
+
   return (
-    <div className="App">
-      <header className="App-header">
-        <img src={logo} className="App-logo" alt="logo" />
-        <p>
-          Edit <code>src/App.js</code> and save to reload.
-        </p>
-        <a
-          className="App-link"
-          href="https://reactjs.org"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Learn React
-        </a>
-      </header>
+    
+    <div className="min-h-screen bg-gray-50">
+      
+      <Header
+        currentPage={currentPage}
+        onPageChange={setCurrentPage}
+        auth={auth}
+        onShowAuth={() => setShowAuthModal(true)}
+      />
+      
+      <WeatherWidget city={auth.user?.city || 'Delhi'} />
+      
+      <main>
+        {renderPage()}
+      </main>
+      
+      <Footer onPageChange={setCurrentPage} />
+      
+      <AuthModal
+        isOpen={showAuthModal}
+        onClose={() => setShowAuthModal(false)}
+        onLogin={handleLogin}
+      />
     </div>
   );
-}
+};
 
-export default App;
+export default DhartiMitra;
