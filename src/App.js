@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Header from './components/common/Header';
 import Footer from './components/common/Footer';
-import WeatherWidget from './components/common/WeatherWidget';
+// import WeatherWidget from './components/common/WeatherWidget';
 import AuthModal from './components/common/AuthModal';
 import HomePage from './components/pages/HomePage';
 import CropAdvisoryPage from './components/pages/CropAdvisoryPage';
@@ -18,7 +18,6 @@ const DhartiMitra = () => {
   const auth = useAuth();
 
   const renderPage = () => {
-    
     switch (currentPage) {
       case 'home':
         return <HomePage />;
@@ -44,25 +43,25 @@ const DhartiMitra = () => {
     setShowAuthModal(false);
   };
 
+  useEffect(() => {
+    if (auth.user?.city) {
+      localStorage.setItem('userCity', auth.user.city);
+    }
+  }, [auth.user?.city]);
+
   return (
-    
     <div className="min-h-screen bg-gray-50">
-      
       <Header
         currentPage={currentPage}
         onPageChange={setCurrentPage}
         auth={auth}
         onShowAuth={() => setShowAuthModal(true)}
       />
-      
-      <WeatherWidget city={auth.user?.city || 'Delhi'} />
-      
+      {/* <WeatherWidget city={auth.user?.city} /> */}
       <main>
         {renderPage()}
       </main>
-      
       <Footer onPageChange={setCurrentPage} />
-      
       <AuthModal
         isOpen={showAuthModal}
         onClose={() => setShowAuthModal(false)}

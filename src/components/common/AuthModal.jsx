@@ -1,10 +1,9 @@
-// components/common/AuthModal.jsx
 import React, { useState } from 'react';
 import { X, Loader } from 'lucide-react';
-import { API_CONFIG } from '../../data/constants';
+import apiService from '../../services/api';
 
 const AuthModal = ({ isOpen, onClose, onLogin }) => {
-  const [authMode, setAuthMode] = useState('login'); // 'login', 'signup', 'otp'
+  const [authMode, setAuthMode] = useState('login');
   const [formData, setFormData] = useState({
     name: '',
     phone: '',
@@ -14,6 +13,7 @@ const AuthModal = ({ isOpen, onClose, onLogin }) => {
   });
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState({ text: '', type: '' });
+  const [weatherPreview, setWeatherPreview] = useState(null);
 
   const handleInputChange = (e) => {
     setFormData(prev => ({
@@ -30,18 +30,9 @@ const AuthModal = ({ isOpen, onClose, onLogin }) => {
 
     setLoading(true);
     try {
-      const response = await fetch(`${API_CONFIG.BASE_URL}/auth/send-otp`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone: formData.phone })
-      });
-      const data = await response.json();
-      if (response.ok) {
-        setMessage({ text: 'OTP sent successfully!', type: 'success' });
-        setAuthMode('otp');
-      } else {
-        throw new Error(data.message || 'Failed to send OTP');
-      }
+      await apiService.sendOTP(formData.phone);
+      setMessage({ text: 'OTP sent successfully!', type: 'success' });
+      setAuthMode('otp');
     } catch (error) {
       setMessage({ text: error.message, type: 'error' });
     } finally {
@@ -57,23 +48,17 @@ const AuthModal = ({ isOpen, onClose, onLogin }) => {
 
     setLoading(true);
     try {
-      const response = await fetch(`${API_CONFIG.BASE_URL}/auth/verify-otp`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone: formData.phone, otp: formData.otp })
-      });
-      const data = await response.json();
-      if (response.ok) {
-        const userData = {
-          name: data.name || 'User',
-          phone: formData.phone,
-          city: data.city || 'Delhi'
-        };
-        onLogin(userData, data.token); // Assume backend returns token
-        onClose();
-      } else {
-        throw new Error(data.message || 'Invalid OTP');
-      }
+      const response = await apiService.verifyOTP(formData.phone, formData.otp);
+      const userData = {
+        name: response.name || response.user?.name || 'User',
+        phone: formData.phone,
+        city: response.city || response.user?.city || ''
+      };
+      localStorage.setItem('userCity', userData.city);
+      localStorage.setItem('accessToken', response.accessToken);
+      localStorage.setItem('refreshToken', response.refreshToken);
+      onLogin(userData, response.accessToken);
+      onClose();
     } catch (error) {
       setMessage({ text: error.message, type: 'error' });
     } finally {
@@ -89,32 +74,28 @@ const AuthModal = ({ isOpen, onClose, onLogin }) => {
 
     setLoading(true);
     try {
-      const response = await fetch(`${API_CONFIG.BASE_URL}/auth/signup`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: formData.name,
-          phone: formData.phone,
-          city: formData.city,
-          area: formData.area
-        })
+      await apiService.signup({
+        name: formData.name,
+        phone: formData.phone,
+        city: formData.city,
+        area: formData.area
       });
-      const data = await response.json();
-      if (response.ok) {
-        setMessage({ text: 'Account created successfully!', type: 'success' });
-        setTimeout(() => {
-          setAuthMode('login');
-          setMessage({ text: '', type: '' });
-        }, 2000);
-      } else {
-        throw new Error(data.message || 'Signup failed');
-      }
+      setMessage({ text: 'Account created successfully!', type: 'success' });
+
+      const weatherResponse = await apiService.getWeather(formData.city);
+      setWeatherPreview(weatherResponse);
+      localStorage.setItem('userCity', formData.city); // Persist city after signup
+
+      setTimeout(() => {
+        setAuthMode('login');
+        setMessage({ text: '', type: '' });
+        setWeatherPreview(null);
+      }, 3000);
     } catch (error) {
       setMessage({ text: error.message, type: 'error' });
     } finally {
       setLoading(false);
     }
-  
   };
 
   if (!isOpen) return null;
@@ -122,7 +103,6 @@ const AuthModal = ({ isOpen, onClose, onLogin }) => {
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-xl p-6 w-full max-w-md">
-        {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-xl font-semibold text-gray-800">
             {authMode === 'login' && 'Welcome to DhartiMitra'}
@@ -134,7 +114,6 @@ const AuthModal = ({ isOpen, onClose, onLogin }) => {
           </button>
         </div>
 
-        {/* Message */}
         {message.text && (
           <div className={`p-3 rounded-lg mb-4 text-sm ${
             message.type === 'error' 
@@ -145,19 +124,18 @@ const AuthModal = ({ isOpen, onClose, onLogin }) => {
           </div>
         )}
 
-        {/* Forms */}
         {authMode === 'login' && (
           <div className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Phone Number *
+                Phone Number
               </label>
               <input
                 type="tel"
                 name="phone"
                 value={formData.phone}
                 onChange={handleInputChange}
-                placeholder="+91XXXXXXXXXX"
+                placeholder="Enter your phone number"
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
                 required
               />
@@ -186,35 +164,35 @@ const AuthModal = ({ isOpen, onClose, onLogin }) => {
           <div className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Full Name *
+                Full Name
               </label>
               <input
                 type="text"
                 name="name"
                 value={formData.name}
                 onChange={handleInputChange}
-                placeholder="Enter your full name"
+                placeholder="Enter your name"
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
                 required
               />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Phone Number *
+                Phone Number
               </label>
               <input
                 type="tel"
                 name="phone"
                 value={formData.phone}
                 onChange={handleInputChange}
-                placeholder="+91XXXXXXXXXX"
+                placeholder="Enter your phone number"
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
                 required
               />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                City *
+                City
               </label>
               <input
                 type="text"
@@ -256,6 +234,16 @@ const AuthModal = ({ isOpen, onClose, onLogin }) => {
                 Login
               </button>
             </div>
+
+            {weatherPreview && (
+              <div className="mt-4 p-3 bg-blue-100 rounded-lg text-sm text-blue-700">
+                <h4 className="font-medium mb-2">Weather Preview for {weatherPreview.name}</h4>
+                <p>Temperature: {weatherPreview.temp}°C (Feels like {weatherPreview.feelsLike}°C)</p>
+                <p>Condition: {weatherPreview.condition} - {weatherPreview.description}</p>
+                <p>Humidity: {weatherPreview.humidity}%</p>
+                <p>Wind: {weatherPreview.windSpeed} m/s</p>
+              </div>
+            )}
           </div>
         )}
 

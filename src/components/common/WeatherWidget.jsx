@@ -1,34 +1,73 @@
-
 // components/common/WeatherWidget.jsx
 import React, { useState, useEffect } from 'react';
 import { 
   Cloud, Thermometer, Droplets, Wind, 
   Loader, AlertTriangle 
 } from 'lucide-react';
+import apiService from '../../services/api';
 
-const WeatherWidget = ({ city = 'Delhi' }) => {
+const WeatherWidget = ({ city: propCity }) => {
   const [weather, setWeather] = useState({
     loading: true,
     data: null,
     error: null
   });
+  const [currentCity, setCurrentCity] = useState(localStorage.getItem('userCity') || propCity || '');
 
   useEffect(() => {
-    // Mock weather data
-    setTimeout(() => {
-      setWeather({
-        loading: false,
-        data: {
-          name: city,
-          temp: 25,
-          humidity: 65,
-          condition: 'Clear',
-          windSpeed: 2.5
-        },
-        error: null
-      });
-    }, 1000);
-  }, [city]);
+    let intervalId = null;
+
+    const fetchWeather = async (city) => {
+      if (!city) {
+        setWeather({
+          loading: false,
+          data: null,
+          error: 'Please log in or select a city'
+        });
+        return;
+      }
+
+      setWeather(prev => ({ ...prev, loading: true, error: null }));
+      try {
+        const data = await apiService.getWeather(city);
+        setWeather({
+          loading: false,
+          data,
+          error: null
+        });
+      } catch (error) {
+        setWeather({
+          loading: false,
+          data: null,
+          error: error.message
+        });
+      }
+    };
+
+    // Immediate fetch on city change
+    fetchWeather(currentCity);
+
+    // Set up interval to refresh every 15 minutes
+    intervalId = setInterval(() => {
+      fetchWeather(currentCity);
+    }, 15 * 60 * 1000); // 15 minutes in milliseconds
+
+    // Listen for storage changes and re-fetch
+    const handleStorageChange = () => {
+      const newCity = localStorage.getItem('userCity') || propCity || '';
+      if (newCity !== currentCity) {
+        setCurrentCity(newCity);
+        fetchWeather(newCity);
+      }
+    };
+    window.addEventListener('storage', handleStorageChange);
+
+    // Cleanup
+    return () => {
+      if (intervalId) clearInterval(intervalId);
+      window.removeEventListener('storage', handleStorageChange);
+    };
+  }, [currentCity, propCity]); // Re-run if currentCity or propCity changes
 
   if (weather.loading) {
     return (
@@ -46,7 +85,7 @@ const WeatherWidget = ({ city = 'Delhi' }) => {
       <div className="fixed top-20 right-4 bg-red-500 text-white p-4 rounded-xl shadow-lg z-40">
         <div className="flex items-center space-x-2">
           <AlertTriangle className="h-4 w-4" />
-          <span className="text-sm">Weather unavailable</span>
+          <span className="text-sm">Weather unavailable: {weather.error}</span>
         </div>
       </div>
     );

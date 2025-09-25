@@ -1,32 +1,72 @@
-import React, { useState } from 'react';
+// components/common/WeatherPage.jsx
+import React, { useState, useEffect } from 'react';
 import { 
   Thermometer, Cloud, Droplets, Wind, 
   BarChart3, MapPin, Loader, Phone 
 } from 'lucide-react';
+import apiService from '../../services/api';
 
 const WeatherPage = () => {
-  const [city, setCity] = useState('');
+  const [city, setCity] = useState(localStorage.getItem('userCity') || '');
   const [weatherData, setWeatherData] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    const fetchWeather = async (currentCity) => {
+      if (!currentCity) return;
+
+      setLoading(true);
+      setError(null);
+      try {
+        const data = await apiService.getWeather(currentCity);
+        setWeatherData(data);
+      } catch (err) {
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    const handleStorageChange = () => {
+      const newCity = localStorage.getItem('userCity') || '';
+      setCity(newCity);
+      fetchWeather(newCity);
+    };
+
+    // Initial fetch
+    fetchWeather(city);
+
+    // Set up interval to refresh every 15 minutes
+    const intervalId = setInterval(() => {
+      fetchWeather(city);
+    }, 15 * 60 * 1000); // 15 minutes
+
+    // Listen for storage changes
+    window.addEventListener('storage', handleStorageChange);
+
+    // Cleanup
+    return () => {
+      clearInterval(intervalId);
+      window.removeEventListener('storage', handleStorageChange);
+    };
+  }, [city]); // Re-fetch when city changes
 
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!city.trim()) return;
 
     setLoading(true);
-    // Mock API call
-    setTimeout(() => {
-      setWeatherData({
-        name: city,
-        temp: Math.floor(Math.random() * 20) + 15,
-        humidity: Math.floor(Math.random() * 40) + 40,
-        condition: 'Clear',
-        windSpeed: (Math.random() * 5 + 1).toFixed(1),
-        pressure: Math.floor(Math.random() * 50) + 1000,
-        feelsLike: Math.floor(Math.random() * 20) + 15
+    setError(null);
+    apiService.getWeather(city)
+      .then((data) => {
+        setWeatherData(data);
+        setLoading(false);
+      })
+      .catch((err) => {
+        setError(err.message);
+        setLoading(false);
       });
-      setLoading(false);
-    }, 1500);
   };
 
   return (
@@ -63,6 +103,12 @@ const WeatherPage = () => {
             </div>
           </form>
 
+          {error && (
+            <div className="p-3 bg-red-100 text-red-700 rounded-lg mb-4">
+              Error: {error}
+            </div>
+          )}
+
           {loading && (
             <div className="text-center py-8">
               <Loader className="h-8 w-8 animate-spin text-green-600 mx-auto mb-4" />
@@ -94,34 +140,34 @@ const WeatherPage = () => {
 
                 <div className="bg-gradient-to-br from-blue-50 to-blue-100 p-6 rounded-xl">
                   <h4 className="flex items-center text-blue-600 font-semibold mb-3">
-                    <Cloud className="h-5 w-5 mr-2" />
-                    Conditions
-                  </h4>
-                  <p className="text-xl font-bold text-blue-600 mb-1">
-                    {weatherData.condition}
-                  </p>
-                  <p className="text-sm text-gray-600 capitalize">
-                    Clear sky
-                  </p>
-                </div>
-
-                <div className="bg-gradient-to-br from-teal-50 to-teal-100 p-6 rounded-xl">
-                  <h4 className="flex items-center text-teal-600 font-semibold mb-3">
                     <Droplets className="h-5 w-5 mr-2" />
                     Humidity
                   </h4>
-                  <p className="text-3xl font-bold text-teal-600">
+                  <p className="text-3xl font-bold text-blue-600">
                     {weatherData.humidity}%
                   </p>
                 </div>
 
-                <div className="bg-gradient-to-br from-orange-50 to-orange-100 p-6 rounded-xl">
-                  <h4 className="flex items-center text-orange-600 font-semibold mb-3">
+                <div className="bg-gradient-to-br from-yellow-50 to-yellow-100 p-6 rounded-xl">
+                  <h4 className="flex items-center text-yellow-600 font-semibold mb-3">
                     <Wind className="h-5 w-5 mr-2" />
-                    Wind
+                    Wind Speed
                   </h4>
-                  <p className="text-3xl font-bold text-orange-600">
+                  <p className="text-3xl font-bold text-yellow-600">
                     {weatherData.windSpeed} m/s
+                  </p>
+                </div>
+
+                <div className="bg-gradient-to-br from-indigo-50 to-indigo-100 p-6 rounded-xl">
+                  <h4 className="flex items-center text-indigo-600 font-semibold mb-3">
+                    <Cloud className="h-5 w-5 mr-2" />
+                    Condition
+                  </h4>
+                  <p className="text-xl font-bold text-indigo-600">
+                    {weatherData.condition}
+                  </p>
+                  <p className="text-sm text-gray-600">
+                    {weatherData.description}
                   </p>
                 </div>
 
